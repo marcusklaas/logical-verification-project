@@ -53,6 +53,9 @@ inductive bisimulation {α β : Type} (m : Model α) (k : Model β) : Type
     (back : ∀ (z : α × β), z ∈ Z → (∀ b', (z.2, b') ∈ k.frame → ∃ a', (z.1, a') ∈ m.frame ∧ (a', b') ∈ Z))
     : bisimulation
 
+def bisim_contains {α β : Type} {m : Model α} {m' : Model β} : bisimulation m m' → α × β -> Prop
+| (bisimulation.mk Z _ _ _) p := p ∈ Z
+
 def satisfies {α : Type} (m : Model α) : α → formula → Prop
 | _ formula.bottom            := false
 | w (formula.negation f)      := ¬ (satisfies w f)
@@ -158,5 +161,26 @@ begin
     }
 end
 
+lemma bisimulation_preserves_satisfaction {α β : Type} (m : Model α) (m' : Model β) (w : α) (w' : β) (Z : bisimulation m m') (h₁ : bisim_contains Z (w, w')):
+    ∀ φ, satisfies m w φ ↔ satisfies m' w' φ :=
+begin
+    intro φ,
+    cases Z,
+    apply iff.intro,
+    {
+        intro sat,
+        induction φ,
+        {
+            cases sat
+        },
+        {
+            exact (Z_invariance φ h₁).right,
+        },
+        { sorry },
+        { sorry },
+        { sorry }
+    },
+    sorry -- completely symmetric
+end
 
-
+-- FIXME: we should probably define bisimulations differently so that we can work with them as if they were sets
