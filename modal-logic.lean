@@ -6,6 +6,7 @@ inductive formula
 | diamond       : formula → formula
 | disjunction   : formula → formula → formula
 
+
 #check formula.diamond $ formula.negation $ formula.propositional "p"
 
 -- equivalence
@@ -37,9 +38,20 @@ def Frame (α : Type) := set (α × α)
 
 def Valuation (α : Type) := string → set α
 
+def pairs {α β : Type} (A : set α) (B: set β) : set (α × β) := { x | x.1 ∈ A ∧ x.2 ∈ B }
+
 structure Model (α : Type) :=
     (frame : set (α × α)) -- TODO: use frame, but need to implement has_mem for it
     (valuation : Valuation α)
+
+inductive bisimulation {α β : Type} (m : Model α) (k : Model β) : Type
+| mk
+    (Z : set (α × β))
+    (invariance : ∀ prop, Z ⊆ pairs (m.valuation prop) (k.valuation prop))
+    -- (invariance_pf : ∀ (a : α) (b : β) (prop : string), (a, b) ∈ Z → (a ∈ m.valuation prop ↔ b ∈ k.valuation prop)) -- equivalent to line above
+    (forth : ∀ (z : α × β), z ∈ Z → (∀ a', (z.1, a') ∈ m.frame → ∃ b', (z.2, b') ∈ k.frame ∧ (a', b') ∈ Z))
+    (back : ∀ (z : α × β), z ∈ Z → (∀ b', (z.2, b') ∈ k.frame → ∃ a', (z.1, a') ∈ m.frame ∧ (a', b') ∈ Z))
+    : bisimulation
 
 def satisfies {α : Type} (m : Model α) : α → formula → Prop
 | _ formula.bottom            := false
@@ -145,3 +157,6 @@ begin
         }        
     }
 end
+
+
+
