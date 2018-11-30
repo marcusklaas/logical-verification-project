@@ -72,6 +72,16 @@ def Id (α : Type) : set (α × α) := { x | x.2 = x.1 }
 def successors {α : Type} (r : set (α × α)) (w : α) : set α :=
     { x | (w, x) ∈ r }
 
+def custom_val {α : Type} (𝔽 : set (α × α)) (w : α) (s : string) : set α :=
+    successors 𝔽 w
+
+lemma contrapositive (A B : Prop) (h : A → B) : ¬ B → ¬ A :=
+begin
+    intros h2 ha,
+    have uh_oh := h ha,
+    contradiction
+end
+
 lemma validate_4_iff_refl {α : Type} (𝔽 : set (α × α)) (p : string) :
     Id α ⊆ 𝔽 ↔ 𝔽 ⊨ (⊞⟦p⟧ => ⟦p⟧) :=
 begin
@@ -80,7 +90,7 @@ begin
     {
         intros h V w,
         simp [implication, satisfies],
-        cases classical.em (w ∈ V p), -- can we do w/o this?
+        cases classical.em (w ∈ V p),
         {
             exact or.inl h_1
         },
@@ -105,19 +115,20 @@ begin
         cases h2,
         apply classical.by_contradiction,
         simp [validates] at val,
-        -- we could have a valuation only for p, but it doesnt matter
-        have custom_val : string → set α := (λ prop, successors 𝔽 r_fst),
-        specialize val custom_val r_fst,
+        have neighbour_iff_in_val : ∀ x : α, (r_fst, x) ∈ 𝔽 ↔ x ∈ custom_val 𝔽 r_fst p := begin
+            intro x,
+            refl
+        end,
+        specialize val (custom_val 𝔽 r_fst) r_fst,
         simp [implication, satisfies] at val,
         cases val,
         {
             intro h3,
-            have r_fst_refl : (r_fst, r_fst) ∈ 𝔽 ↔ r_fst ∈ custom_val p := sorry, -- wish we could 'by refl' this
-            have oh_no := iff.elim_right r_fst_refl val,
+            have oh_no := iff.elim_right (neighbour_iff_in_val r_fst) val,
             contradiction
         },
         {
-            have yolo : ∃ (v : α), (r_fst, v) ∈ 𝔽 ∧ v ∉ custom_val p :=
+            have yolo : ∃ (v : α), (r_fst, v) ∈ 𝔽 ∧ v ∉ custom_val 𝔽 r_fst p :=
                 begin
                     apply classical.by_contradiction,
                     apply val,
@@ -125,9 +136,11 @@ begin
             cases yolo,
             cases yolo_h,
             intro unimportant,
-            have swag : yolo_w ∉ custom_val p ↔ (r_fst, yolo_w) ∉ 𝔽 := sorry,
-            -- we could probably generalize the above statement
-            have oh_no := iff.elim_left swag yolo_h_right,
+            have swag : yolo_w ∉ custom_val 𝔽 r_fst p → (r_fst, yolo_w) ∉ 𝔽 := begin
+                apply contrapositive,
+                exact iff.elim_left (neighbour_iff_in_val yolo_w),
+            end,
+            have oh_no := swag yolo_h_right,
             contradiction
         }        
     }
