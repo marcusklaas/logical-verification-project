@@ -100,11 +100,9 @@ end
 lemma validate_4_iff_refl {α : Type} (𝔽 : set (α × α)) (p : string) :
     Id α ⊆ 𝔽 ↔ 𝔽 ⊨ (⊞⟦p⟧ => ⟦p⟧) :=
 begin
-    simp [box, satisfies],
     apply iff.intro,
     {
         intros h V w,
-        simp [implication, satisfies],
         cases classical.em (w ∈ V p),
         {
             exact or.inl h_1
@@ -112,16 +110,7 @@ begin
         {
             apply or.inr,
             intro h2,
-            apply h2,
-            apply exists.intro w,
-            apply and.intro,
-            {
-                apply h,
-                exact rfl
-            },
-            {
-                assumption
-            }
+            exact h2 ⟨w, by { apply h, exact rfl }, h_1⟩
         }
     },
     {
@@ -129,13 +118,8 @@ begin
         cases r,
         cases h2,
         apply classical.by_contradiction,
-        simp [validates] at val,
-        have neighbour_iff_in_val : ∀ x : α, (r_fst, x) ∈ 𝔽 ↔ x ∈ custom_val 𝔽 r_fst p := begin
-            intro x,
-            refl
-        end,
+        have neighbour_iff_in_val : ∀ x : α, (r_fst, x) ∈ 𝔽 ↔ x ∈ custom_val 𝔽 r_fst p := (λ x, by refl),
         specialize val (custom_val 𝔽 r_fst) r_fst,
-        simp [implication, satisfies] at val,
         cases val,
         {
             intro h3,
@@ -143,19 +127,14 @@ begin
             contradiction
         },
         {
-            have yolo : ∃ (v : α), (r_fst, v) ∈ 𝔽 ∧ v ∉ custom_val 𝔽 r_fst p :=
-                begin
-                    apply classical.by_contradiction,
-                    apply val,
-                end,
-            cases yolo,
-            cases yolo_h,
+            cases classical.by_contradiction val,
+            cases h,
             intro unimportant,
-            have swag : yolo_w ∉ custom_val 𝔽 r_fst p → (r_fst, yolo_w) ∉ 𝔽 := begin
+            have swag : (r_fst, w) ∉ 𝔽 := begin
                 apply contrapositive,
-                exact iff.elim_left (neighbour_iff_in_val yolo_w),
+                apply iff.elim_left (neighbour_iff_in_val w),
+                exact h_right
             end,
-            have oh_no := swag yolo_h_right,
             contradiction
         }        
     }
