@@ -127,7 +127,7 @@ begin
 end
 
 def bisimulation {α β : Type} (Z : set (α × β)) (m : Model α) (k : Model β) :=
-    (∀ prop, Z ⊆ pairs (m.valuation prop) (k.valuation prop)) -- valuation invariance
+    (∀ prop (z : α × β), z ∈ Z → (z.1 ∈ (m.valuation prop) ↔ z.2 ∈ (k.valuation prop))) -- valuation invariance
   ∧ (∀ (z : α × β), z ∈ Z → (∀ a', (z.1, a') ∈ m.frame → ∃ b', (z.2, b') ∈ k.frame ∧ (a', b') ∈ Z)) -- ZIG
   ∧ (∀ (z : α × β), z ∈ Z → (∀ b', (z.2, b') ∈ k.frame → ∃ a', (z.1, a') ∈ m.frame ∧ (a', b') ∈ Z)) -- ZAG
 
@@ -142,8 +142,8 @@ begin
         apply iff.intro; intro sat; cases sat
     },
     {
-        exact ⟨assume sat, (h₂_left φ h₁).right,
-               assume sat, (h₂_left φ h₁).left⟩ 
+        exact ⟨assume sat, iff.elim_left (h₂_left φ (w, w') h₁) sat,
+               assume sat, iff.elim_right (h₂_left φ (w, w') h₁) sat⟩
     },
     {
         exact ⟨assume sat, contrapositive (iff.elim_right (φ_ih h₁)) sat,
@@ -218,7 +218,6 @@ begin
             {
                 intros prop,
                 sorry
-                -- hmmm, this may be tuff. did we use a correct definition for invariance?
             },
             {
                 apply and.intro,
