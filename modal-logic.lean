@@ -6,7 +6,6 @@ inductive formula
 | diamond       : formula → formula
 | disjunction   : formula → formula → formula
 
-
 #check formula.diamond $ formula.negation $ formula.propositional "p"
 
 -- equivalence
@@ -21,7 +20,7 @@ def implication : formula → formula → formula
 
 -- TODO: fix formatting of more complex formulas using parens
 def formula.repr : formula → string
-| (formula.negation (formula.diamond (formula.negation ψ))) := "⊞" ++ formula.repr ψ
+| (formula.negation (formula.diamond (formula.negation ψ))) := "□" ++ formula.repr ψ
 | (formula.negation (formula.disjunction (formula.negation ψ) (formula.negation χ))) := formula.repr ψ ++ " ∧ " ++ formula.repr χ
 | (formula.disjunction χ (formula.negation ψ)) := formula.repr ψ ++ " → " ++ formula.repr χ
 | (formula.disjunction (formula.negation ψ) χ) := formula.repr ψ ++ " → " ++ formula.repr χ
@@ -44,17 +43,6 @@ structure Model (α : Type) :=
     (frame : set (α × α)) -- TODO: use frame, but need to implement has_mem for it
     (valuation : Valuation α)
 
-inductive bisimulation {α β : Type} (m : Model α) (k : Model β) : Type
-| mk
-    (Z : set (α × β))
-    (invariance : ∀ prop, Z ⊆ pairs (m.valuation prop) (k.valuation prop))
-    (forth : ∀ (z : α × β), z ∈ Z → (∀ a', (z.1, a') ∈ m.frame → ∃ b', (z.2, b') ∈ k.frame ∧ (a', b') ∈ Z))
-    (back : ∀ (z : α × β), z ∈ Z → (∀ b', (z.2, b') ∈ k.frame → ∃ a', (z.1, a') ∈ m.frame ∧ (a', b') ∈ Z))
-    : bisimulation
-
-def bisim_contains {α β : Type} {m : Model α} {m' : Model β} : bisimulation m m' → α × β -> Prop
-| (bisimulation.mk Z _ _ _) p := p ∈ Z
-
 def satisfies {α : Type} (m : Model α) : α → formula → Prop
 | _ formula.bottom            := false
 | w (formula.negation f)      := ¬ (satisfies w f)
@@ -68,7 +56,7 @@ def validates {α : Type} : set (α × α) → formula → Prop
 | 𝔽 φ := ∀ (V : Valuation α) (w : α), ({frame := 𝔽, valuation := V}, w) ⊢ φ
 
 -- some shorthand
-notation `⊞`       := box
+notation `□`       := box
 notation `⋄`       := formula.diamond
 notation `!`       := formula.negation -- ¬ would be nicer, but overloading is not allowed
 notation `⟦` p `⟧` := formula.propositional p
@@ -81,7 +69,7 @@ infixl `⊨` : 50    := validates
 #check function.uncurry
 #check (⊢)
 
-#eval (⊞⟦"p"⟧ => !⟦"p"⟧).repr -- ⊞p → ¬p
+#eval (□⟦"p"⟧ => !⟦"p"⟧).repr -- □p → ¬p
 
 example {α : Type} (𝔽 : set (α × α)) (w : α) : ¬ 𝔽 ⊨ ⊥ := sorry
 
@@ -101,7 +89,7 @@ begin
 end
 
 lemma validate_4_iff_refl {α : Type} (𝔽 : set (α × α)) (p : string) :
-    Id α ⊆ 𝔽 ↔ 𝔽 ⊨ (⊞⟦p⟧ => ⟦p⟧) :=
+    Id α ⊆ 𝔽 ↔ 𝔽 ⊨ (□⟦p⟧ => ⟦p⟧) :=
 begin
     apply iff.intro,
     {
@@ -132,24 +120,30 @@ begin
         {
             cases classical.by_contradiction val,
             cases h,
-            have oh_no : (r_fst, w) ∉ 𝔽 := contrapositive (iff.elim_left (neighbour_iff_in_val w)) h_right,
+            have oh_no := contrapositive (iff.elim_left (neighbour_iff_in_val w)) h_right,
             contradiction
         }        
     }
 end
 
-lemma bisimulation_preserves_satisfaction {α β : Type} {m : Model α} {m' : Model β} {w : α} {w' : β} (Z : bisimulation m m') (h₁ : bisim_contains Z (w, w')):
+def bisimulation {α β : Type} (Z : set (α × β)) (m : Model α) (k : Model β) :=
+    (∀ prop, Z ⊆ pairs (m.valuation prop) (k.valuation prop)) -- valuation invariance
+  ∧ (∀ (z : α × β), z ∈ Z → (∀ a', (z.1, a') ∈ m.frame → ∃ b', (z.2, b') ∈ k.frame ∧ (a', b') ∈ Z)) -- ZIG
+  ∧ (∀ (z : α × β), z ∈ Z → (∀ b', (z.2, b') ∈ k.frame → ∃ a', (z.1, a') ∈ m.frame ∧ (a', b') ∈ Z)) -- ZAG
+
+lemma bisimulation_preserves_satisfaction {α β : Type} {m : Model α} {m' : Model β} {w : α} {w' : β} (Z : set (α × β)) (h₂ : bisimulation Z m m') (h₁ : (w, w') ∈ Z):
     ∀ φ, (m, w) ⊢ φ ↔ (m', w') ⊢ φ :=
 begin
     intro φ,
-    cases Z,
+    cases h₂, -- TODO: rename these hypothesis to something more meaningful
+    cases h₂_right,
     induction φ generalizing w w',
     {
         apply iff.intro; intro sat; cases sat
     },
     {
-        exact ⟨assume sat, (Z_invariance φ h₁).right,
-               assume sat, (Z_invariance φ h₁).left⟩ 
+        exact ⟨assume sat, (h₂_left φ h₁).right,
+               assume sat, (h₂_left φ h₁).left⟩ 
     },
     {
         exact ⟨assume sat, contrapositive (iff.elim_right (φ_ih h₁)) sat,
@@ -161,7 +155,7 @@ begin
         apply iff.intro; intro sat; cases sat; cases sat_h,
         {
             -- need forth condition
-            have cond := Z_forth,
+            have cond := h₂_right_left,
             specialize cond (w, w') h₁ sat_w sat_h_left,
             cases cond,
             cases cond_h,
@@ -172,7 +166,7 @@ begin
         },
         {
             -- need back condition
-            have cond := Z_back,
+            have cond := h₂_right_right,
             specialize cond (w, w') h₁ sat_w sat_h_left,
             cases cond,
             cases cond_h,
@@ -191,4 +185,73 @@ begin
     }
 end
 
--- FIXME: we should probably define bisimulations differently so that we can work with them as if they were sets
+def bounded_morphism {α β} (f : α → β) (𝔽 : set (α × α)) (ℍ : set (β × β)) :=
+    (∀ (r : α × α), r ∈ 𝔽 → (f(r.1), f(r.2)) ∈ ℍ) -- ZIG
+  ∧ (∀ (r' : β × β), r' ∈ ℍ → ∃ (r : α × α), r ∈ 𝔽 ∧ (f(r.1), f(r.2)) = r') -- ZAG
+
+-- AKA surjection
+def onto {α β} (f : α → β) := ∀ b, ∃ a, f(a) = b
+
+def func_as_set {α β} (f : α → β) : set (α × β) := { x | x.2 = f(x.1) }
+
+lemma bounded_morphic_img_preserves_validity {α β : Type} (𝔽 : set (α × α)) (ℍ : set (β × β)) (f : α → β) (h₁ : bounded_morphism f 𝔽 ℍ) (h₂ : onto f) :
+    ∀ φ, 𝔽 ⊨ φ ↔ ℍ ⊨ φ :=
+begin
+    intro φ,
+    apply iff.intro,
+    {
+        intro sat,
+        simp [(⊨)],
+        intros V' w',
+        specialize h₂ w',
+        cases h₂,
+        cases h₁,
+        have rel : set (α × β) := func_as_set f,
+        have V : Valuation α := λ prop, { x | true }, -- FIXME: this valuation is probably not good enuf
+        have related_w_w' : (h₂_w, w') ∈ rel := begin
+            sorry
+            -- should be trivial lol
+        end,
+        have bisim : bisimulation rel ({frame := 𝔽, valuation := V}) ({frame := ℍ, valuation := V'}) := begin
+            simp [bisimulation],
+            apply and.intro,
+            {
+                intros prop,
+                sorry
+                -- hmmm, this may be tuff. did we use a correct definition for invariance?
+            },
+            {
+                apply and.intro,
+                {
+                    intros z z_in_rel a' 𝔽_neighbour,
+                    specialize h₁_left (z.fst, a') 𝔽_neighbour,
+                    apply exists.intro (f ((z.fst, a').snd)),
+                    apply and.intro,
+                    {
+                        simp *,
+                        have yolo : f ((z.fst, a').fst) = z.snd := begin
+                            simp *,
+                            sorry
+                            -- trivial!!
+                        end,
+                        have swag : f ((z.fst, a').snd) = f a' := by refl,
+                        rw [←yolo, ←swag],
+                        apply h₁_left
+                    },
+                    {
+                        simp *,
+                        sorry
+                        -- omg trivial again
+                    }
+                },
+                {
+                    sorry
+                }
+            }
+        end,
+        exact iff.elim_left (bisimulation_preserves_satisfaction rel bisim related_w_w' φ) (sat V h₂_w)
+    },
+    {
+        sorry
+    }
+end
