@@ -207,7 +207,7 @@ begin
         cases h₂,
         cases h₁,
         have rel : set (α × β) := func_as_set f,
-        have V : Valuation α := λ prop, { x | true }, -- FIXME: this valuation is probably not good enuf
+        have V : Valuation α := λ prop, { x | f x ∈ V' prop },
         have related_w_w' : (h₂_w, w') ∈ rel := begin
             sorry
             -- should be trivial lol
@@ -216,8 +216,18 @@ begin
             simp [bisimulation],
             apply and.intro,
             {
-                intros prop,
-                sorry
+                intros prop z z_in_rel,
+                apply iff.intro,
+                {
+                    intro z_fst_in_V,
+                    -- TRI - VI - AL
+                    sorry
+                },
+                {
+                    intro z_snd_in_V',
+                    -- ez
+                    sorry
+                }
             },
             {
                 apply and.intro,
@@ -244,7 +254,7 @@ begin
                     }
                 },
                 {
-                    sorry
+                    sorry -- similar to above
                 }
             }
         end,
