@@ -194,11 +194,11 @@ def onto {α β} (f : α → β) := ∀ b, ∃ a, f(a) = b
 
 def func_as_set {α β} (f : α → β) : set (α × β) := { x | x.2 = f(x.1) }
 
-example {α β} (a : α) (f : α → β) : (a, f a) ∈ func_as_set f :=
-begin
-    rw func_as_set,
-    sorry -- this is the root of all my problems!
-end 
+example {α β} (a : α) (f : α → β) : (a, f a) ∈ func_as_set f := begin
+    exact rfl
+end
+
+def custom_rel {α β} (f : α → β) (V' : string → set β) : string → set α := λ prop, { x | f x ∈ V' prop }
 
 lemma bounded_morphic_img_preserves_validity {α β : Type} (𝔽 : set (α × α)) (ℍ : set (β × β)) (f : α → β) (h₁ : bounded_morphism f 𝔽 ℍ) (h₂ : onto f) :
     ∀ φ, 𝔽 ⊨ φ ↔ ℍ ⊨ φ :=
@@ -212,27 +212,31 @@ begin
         specialize h₂ w',
         cases h₂,
         cases h₁,
-        have rel : set (α × β) := func_as_set f,
-        have V : Valuation α := λ prop, { x | f x ∈ V' prop },
-        have related_w_w' : (h₂_w, w') ∈ rel := begin
-            sorry
-            -- should be trivial lol
+        -- have rel : set (α × β) := func_as_set f,
+        --V = custom_rel f V'
+        --have V : Valuation α := λ prop, { x | f x ∈ V' prop },
+        have related_w_w' : (h₂_w, w') ∈ func_as_set f := begin
+            rw ←h₂_h,
+            exact rfl
         end,
-        have bisim : bisimulation rel ({frame := 𝔽, valuation := V}) ({frame := ℍ, valuation := V'}) := begin
+        have bisim : bisimulation (func_as_set f) ({frame := 𝔽, valuation := custom_rel f V'}) ({frame := ℍ, valuation := V'}) := begin
             simp [bisimulation],
             apply and.intro,
             {
                 intros prop z z_in_rel,
+                change z.snd = f z.fst at z_in_rel,
                 apply iff.intro,
                 {
                     intro z_fst_in_V,
-                    -- TRI - VI - AL
-                    sorry
+                    change f z.fst ∈ V' prop at z_fst_in_V,
+                    rw ←z_in_rel at z_fst_in_V,
+                    assumption
                 },
                 {
                     intro z_snd_in_V',
-                    -- ez
-                    sorry
+                    change f z.fst ∈ V' prop,
+                    rw z_in_rel at z_snd_in_V',
+                    assumption
                 }
             },
             {
@@ -245,18 +249,17 @@ begin
                     {
                         simp *,
                         have yolo : f ((z.fst, a').fst) = z.snd := begin
+                            rw func_as_set at z_in_rel,
                             simp *,
-                            sorry
-                            -- trivial!!
+                            apply eq.symm,
+                            assumption
                         end,
                         have swag : f ((z.fst, a').snd) = f a' := by refl,
                         rw [←yolo, ←swag],
                         apply h₁_left
                     },
                     {
-                        simp *,
-                        sorry
-                        -- omg trivial again
+                        exact rfl
                     }
                 },
                 {
@@ -264,9 +267,9 @@ begin
                 }
             }
         end,
-        exact iff.elim_left (bisimulation_preserves_satisfaction rel bisim related_w_w' φ) (sat V h₂_w)
+        exact iff.elim_left (bisimulation_preserves_satisfaction (custom_rel f V') bisim related_w_w' φ) (sat V h₂_w)
     },
     {
-        sorry
+        sorry -- exactly as the other case, maybe even simpler
     }
 end
