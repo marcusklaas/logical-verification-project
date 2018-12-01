@@ -48,7 +48,6 @@ inductive bisimulation {α β : Type} (m : Model α) (k : Model β) : Type
 | mk
     (Z : set (α × β))
     (invariance : ∀ prop, Z ⊆ pairs (m.valuation prop) (k.valuation prop))
-    -- (invariance_pf : ∀ (a : α) (b : β) (prop : string), (a, b) ∈ Z → (a ∈ m.valuation prop ↔ b ∈ k.valuation prop)) -- equivalent to line above
     (forth : ∀ (z : α × β), z ∈ Z → (∀ a', (z.1, a') ∈ m.frame → ∃ b', (z.2, b') ∈ k.frame ∧ (a', b') ∈ Z))
     (back : ∀ (z : α × β), z ∈ Z → (∀ b', (z.2, b') ∈ k.frame → ∃ a', (z.1, a') ∈ m.frame ∧ (a', b') ∈ Z))
     : bisimulation
@@ -63,8 +62,10 @@ def satisfies {α : Type} (m : Model α) : α → formula → Prop
 | w (formula.propositional p) := w ∈ m.valuation p
 | w (formula.diamond f)       := ∃ v : α, ((w, v) ∈ m.frame ∧ satisfies v f)
 
+infixl `⊢` : 50    := function.uncurry satisfies
+
 def validates {α : Type} : set (α × α) → formula → Prop
-| 𝔽 φ := ∀ (V : Valuation α) (w : α), satisfies {frame := 𝔽, valuation := V} w φ
+| 𝔽 φ := ∀ (V : Valuation α) (w : α), ({frame := 𝔽, valuation := V}, w) ⊢ φ
 
 -- some shorthand
 notation `⊞`       := box
@@ -76,7 +77,6 @@ infixl ` | ` : 40  := formula.disjunction
 infixl ` & ` : 50  := conjunction
 notation `⊥`       := formula.bottom
 infixl `⊨` : 50    := validates
-infixl `⊢` : 50    := function.uncurry satisfies
 
 #check function.uncurry
 #check (⊢)
@@ -120,24 +120,19 @@ begin
         intros val r h2,
         cases r,
         cases h2,
+        -- TODO: see if we can do this w/o contradiction
         apply classical.by_contradiction,
         have neighbour_iff_in_val : ∀ x : α, (r_fst, x) ∈ 𝔽 ↔ x ∈ custom_val 𝔽 r_fst p := (λ x, by refl),
         specialize val (custom_val 𝔽 r_fst) r_fst,
         cases val,
         {
-            intro h3,
             have oh_no := iff.elim_right (neighbour_iff_in_val r_fst) val,
             contradiction
         },
         {
             cases classical.by_contradiction val,
             cases h,
-            intro unimportant,
-            have swag : (r_fst, w) ∉ 𝔽 := begin
-                apply contrapositive,
-                apply iff.elim_left (neighbour_iff_in_val w),
-                exact h_right
-            end,
+            have oh_no : (r_fst, w) ∉ 𝔽 := contrapositive (iff.elim_left (neighbour_iff_in_val w)) h_right,
             contradiction
         }        
     }
@@ -163,61 +158,36 @@ begin
     {
         -- okay this is the interesting part
         -- TODO: simplify!
-        apply iff.intro,
+        apply iff.intro; intro sat; cases sat; cases sat_h,
         {
             -- need forth condition
-            intro sat,
-            cases sat,
-            cases sat_h,
-            specialize Z_forth (w, w') h₁ sat_w sat_h_left,
-            cases Z_forth,
-            cases Z_forth_h,
-            -- (sat_w, Z_forth_w) is our new pair
-            specialize φ_ih Z_forth_h_right,
-            apply exists.intro Z_forth_w,
-            exact ⟨ Z_forth_h_left, iff.elim_left φ_ih sat_h_right ⟩
+            have cond := Z_forth,
+            specialize cond (w, w') h₁ sat_w sat_h_left,
+            cases cond,
+            cases cond_h,
+            -- (sat_w, cond_w) is our new pair
+            specialize φ_ih cond_h_right,
+            apply exists.intro cond_w,
+            exact ⟨ cond_h_left, iff.elim_left φ_ih sat_h_right ⟩
         },
         {
             -- need back condition
-            intro sat,
-            cases sat,
-            cases sat_h,
-            specialize Z_back (w, w') h₁ sat_w sat_h_left,
-            cases Z_back,
-            cases Z_back_h,
-            -- (Z_back_w, sat_w) is our new pair
-            specialize φ_ih Z_back_h_right,
-            apply exists.intro Z_back_w,
-            exact ⟨ Z_back_h_left, iff.elim_right φ_ih sat_h_right ⟩
+            have cond := Z_back,
+            specialize cond (w, w') h₁ sat_w sat_h_left,
+            cases cond,
+            cases cond_h,
+            -- (cond_w, sat_w) is our new pair
+            specialize φ_ih cond_h_right,
+            apply exists.intro cond_w,
+            exact ⟨ cond_h_left, iff.elim_right φ_ih sat_h_right ⟩
         }
     },
     {
-        -- TODO: simplify this case
-        apply iff.intro,
-        {
-            intro sat,
-            cases sat,
-            {
-                apply or.inl,
-                exact iff.elim_left (φ_ih_a h₁) sat,
-            },
-            {
-                apply or.inr,
-                exact iff.elim_left (φ_ih_a_1 h₁) sat,
-            }
-        },
-        {
-            intro sat,
-            cases sat,
-            {
-                apply or.inl,
-                exact iff.elim_right (φ_ih_a h₁) sat,
-            },
-            {
-                apply or.inr,
-                exact iff.elim_right (φ_ih_a_1 h₁) sat,
-            }
-        }
+        apply iff.intro; intro sat; cases sat,
+        exact or.inl (iff.elim_left (φ_ih_a h₁) sat),
+        exact or.inr (iff.elim_left (φ_ih_a_1 h₁) sat),
+        exact or.inl (iff.elim_right (φ_ih_a h₁) sat),
+        exact or.inr (iff.elim_right (φ_ih_a_1 h₁) sat)
     }
 end
 
