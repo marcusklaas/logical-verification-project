@@ -76,7 +76,10 @@ infixl ` | ` : 40  := formula.disjunction
 infixl ` & ` : 50  := conjunction
 notation `⊥`       := formula.bottom
 infixl `⊨` : 50    := validates
--- notation `(` 𝔽`,` w `)` `⊢` φ := satisfies 𝔽 w φ
+infixl `⊢` : 50    := function.uncurry satisfies
+
+#check function.uncurry
+#check (⊢)
 
 #eval (⊞⟦"p"⟧ => !⟦"p"⟧).repr -- ⊞p → ¬p
 
@@ -90,7 +93,7 @@ def successors {α : Type} (r : set (α × α)) (w : α) : set α :=
 def custom_val {α : Type} (𝔽 : set (α × α)) (w : α) (s : string) : set α :=
     successors 𝔽 w
 
-lemma contrapositive (A B : Prop) (h : A → B) : ¬ B → ¬ A :=
+lemma contrapositive {A B : Prop} (h : A → B) : ¬ B → ¬ A :=
 begin
     intros h2 ha,
     have uh_oh := h ha,
@@ -140,26 +143,82 @@ begin
     }
 end
 
-lemma bisimulation_preserves_satisfaction {α β : Type} (m : Model α) (m' : Model β) (w : α) (w' : β) (Z : bisimulation m m') (h₁ : bisim_contains Z (w, w')):
-    ∀ φ, satisfies m w φ ↔ satisfies m' w' φ :=
+lemma bisimulation_preserves_satisfaction {α β : Type} {m : Model α} {m' : Model β} {w : α} {w' : β} (Z : bisimulation m m') (h₁ : bisim_contains Z (w, w')):
+    ∀ φ, (m, w) ⊢ φ ↔ (m', w') ⊢ φ :=
 begin
     intro φ,
     cases Z,
-    apply iff.intro,
+    induction φ generalizing w w',
     {
-        intro sat,
-        induction φ,
-        {
-            cases sat
-        },
-        {
-            exact (Z_invariance φ h₁).right,
-        },
-        { sorry },
-        { sorry },
-        { sorry }
+        apply iff.intro; intro sat; cases sat
     },
-    sorry -- completely symmetric
+    {
+        exact ⟨assume sat, (Z_invariance φ h₁).right,
+               assume sat, (Z_invariance φ h₁).left⟩ 
+    },
+    {
+        exact ⟨assume sat, contrapositive (iff.elim_right (φ_ih h₁)) sat,
+               assume sat, contrapositive (iff.elim_left (φ_ih h₁)) sat⟩
+    },
+    {
+        -- okay this is the interesting part
+        -- TODO: simplify!
+        apply iff.intro,
+        {
+            -- need forth condition
+            intro sat,
+            cases sat,
+            cases sat_h,
+            specialize Z_forth (w, w') h₁ sat_w sat_h_left,
+            cases Z_forth,
+            cases Z_forth_h,
+            -- (sat_w, Z_forth_w) is our new pair
+            specialize φ_ih Z_forth_h_right,
+            apply exists.intro Z_forth_w,
+            exact ⟨ Z_forth_h_left, iff.elim_left φ_ih sat_h_right ⟩
+        },
+        {
+            -- need back condition
+            intro sat,
+            cases sat,
+            cases sat_h,
+            specialize Z_back (w, w') h₁ sat_w sat_h_left,
+            cases Z_back,
+            cases Z_back_h,
+            -- (Z_back_w, sat_w) is our new pair
+            specialize φ_ih Z_back_h_right,
+            apply exists.intro Z_back_w,
+            exact ⟨ Z_back_h_left, iff.elim_right φ_ih sat_h_right ⟩
+        }
+    },
+    {
+        -- TODO: simplify this case
+        apply iff.intro,
+        {
+            intro sat,
+            cases sat,
+            {
+                apply or.inl,
+                exact iff.elim_left (φ_ih_a h₁) sat,
+            },
+            {
+                apply or.inr,
+                exact iff.elim_left (φ_ih_a_1 h₁) sat,
+            }
+        },
+        {
+            intro sat,
+            cases sat,
+            {
+                apply or.inl,
+                exact iff.elim_right (φ_ih_a h₁) sat,
+            },
+            {
+                apply or.inr,
+                exact iff.elim_right (φ_ih_a_1 h₁) sat,
+            }
+        }
+    }
 end
 
 -- FIXME: we should probably define bisimulations differently so that we can work with them as if they were sets
