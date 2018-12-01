@@ -194,6 +194,12 @@ def onto {α β} (f : α → β) := ∀ b, ∃ a, f(a) = b
 
 def func_as_set {α β} (f : α → β) : set (α × β) := { x | x.2 = f(x.1) }
 
+example {α β} (a : α) (f : α → β) : (a, f a) ∈ func_as_set f :=
+begin
+    rw func_as_set,
+    sorry -- this is the root of all my problems!
+end 
+
 lemma bounded_morphic_img_preserves_validity {α β : Type} (𝔽 : set (α × α)) (ℍ : set (β × β)) (f : α → β) (h₁ : bounded_morphism f 𝔽 ℍ) (h₂ : onto f) :
     ∀ φ, 𝔽 ⊨ φ ↔ ℍ ⊨ φ :=
 begin
