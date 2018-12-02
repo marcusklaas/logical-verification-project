@@ -151,7 +151,7 @@ begin
     },
     {
         -- okay this is the interesting part
-        -- TODO: simplify!
+        -- TODO: simplify! split to lemma?
         apply iff.intro; intro sat; cases sat; cases sat_h,
         {
             -- need forth condition
@@ -187,7 +187,7 @@ end
 
 def bounded_morphism {α β} (f : α → β) (𝔽 : set (α × α)) (ℍ : set (β × β)) :=
     (∀ (r : α × α), r ∈ 𝔽 → (f(r.1), f(r.2)) ∈ ℍ) -- ZIG
-  ∧ (∀ (r' : β × β), r' ∈ ℍ → ∃ (r : α × α), r ∈ 𝔽 ∧ (f(r.1), f(r.2)) = r') -- ZAG
+  ∧ (∀ (r' : β × β), r' ∈ ℍ → ∀ a, f a = r'.1 → ∃ a', (a, a') ∈ 𝔽 ∧ f a' = r'.2) -- ZAG
 
 -- AKA surjection
 def onto {α β} (f : α → β) := ∀ b, ∃ a, f(a) = b
@@ -207,22 +207,21 @@ begin
     apply iff.intro,
     {
         intro sat,
-        simp [(⊨)],
         intros V' w',
         specialize h₂ w',
         cases h₂,
         cases h₁,
-        -- have rel : set (α × β) := func_as_set f,
-        --V = custom_rel f V'
-        --have V : Valuation α := λ prop, { x | f x ∈ V' prop },
+        --rel = func_as_set f
+        --V = custom_rel f V' = λ prop, { x | f x ∈ V' prop }
         have related_w_w' : (h₂_w, w') ∈ func_as_set f := begin
             rw ←h₂_h,
             exact rfl
         end,
+        -- TODO: this should be a lemma
         have bisim : bisimulation (func_as_set f) ({frame := 𝔽, valuation := custom_rel f V'}) ({frame := ℍ, valuation := V'}) := begin
-            simp [bisimulation],
             apply and.intro,
             {
+                -- prove that our new valuation works
                 intros prop z z_in_rel,
                 change z.snd = f z.fst at z_in_rel,
                 apply iff.intro,
@@ -240,34 +239,26 @@ begin
                 }
             },
             {
+                -- translating ZIG and ZAG properties
                 apply and.intro,
                 {
                     intros z z_in_rel a' 𝔽_neighbour,
                     specialize h₁_left (z.fst, a') 𝔽_neighbour,
-                    apply exists.intro (f ((z.fst, a').snd)),
-                    apply and.intro,
-                    {
-                        simp *,
-                        have yolo : f ((z.fst, a').fst) = z.snd := begin
-                            rw func_as_set at z_in_rel,
-                            simp *,
-                            apply eq.symm,
-                            assumption
-                        end,
-                        have swag : f ((z.fst, a').snd) = f a' := by refl,
-                        rw [←yolo, ←swag],
-                        apply h₁_left
-                    },
-                    {
-                        exact rfl
-                    }
+                    change z.snd = f z.fst at z_in_rel,
+                    rw z_in_rel,
+                    exact exists.intro (f a') (and.intro h₁_left rfl)
                 },
                 {
-                    sorry -- similar to above
+                    intros z z_in_rel b' ℍ_neighbour,
+                    specialize h₁_right (z.snd, b') ℍ_neighbour z.fst (eq.symm z_in_rel),
+                    cases h₁_right,
+                    cases h₁_right_h,
+                    exact exists.intro h₁_right_w ⟨h₁_right_h_left, eq.symm h₁_right_h_right⟩
                 }
             }
         end,
-        exact iff.elim_left (bisimulation_preserves_satisfaction (custom_rel f V') bisim related_w_w' φ) (sat V h₂_w)
+        -- use bisimulation result
+        exact iff.elim_left (bisimulation_preserves_satisfaction (func_as_set f) bisim related_w_w' φ) (sat (custom_rel f V') h₂_w)
     },
     {
         sorry -- exactly as the other case, maybe even simpler
