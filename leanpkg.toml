@@ -1,0 +1,8 @@
+[package]
+name = "my_playground"
+version = "0.1"
+lean_version = "nightly-2018-11-13"
+path = "src"
+
+[dependencies]
+mathlib = {git = "https://github.com/leanprover/mathlib", rev = "51afb41c46d25d37acea19658d229c8674572960"}

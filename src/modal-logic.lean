@@ -1,3 +1,5 @@
+import data.set.basic
+
 -- basic formula for unimodal logic
 inductive formula 
 | bottom        : formula 
@@ -96,7 +98,7 @@ begin
     contradiction
 end
 
-lemma reflexivity_modally_definable {α : Type} (𝔽 : set (α × α)) (p : string) :
+lemma reflexivity_modally_definable {α : Type} {𝔽 : set (α × α)} {p : string} :
     Id α ⊆ 𝔽 ↔ 𝔽 ⊨ (□⟦p⟧ => ⟦p⟧) :=
 begin
     apply iff.intro,
@@ -139,8 +141,9 @@ def bisimulation {α β : Type} (Z : set (α × β)) (m : Model α) (k : Model �
   ∧ (∀ (z : α × β), z ∈ Z → (∀ a', (z.1, a') ∈ m.frame → ∃ b', (z.2, b') ∈ k.frame ∧ (a', b') ∈ Z)) -- ZIG
   ∧ (∀ (z : α × β), z ∈ Z → (∀ b', (z.2, b') ∈ k.frame → ∃ a', (z.1, a') ∈ m.frame ∧ (a', b') ∈ Z)) -- ZAG
 
-lemma bisimulation_preserves_satisfaction {α β : Type} {m : Model α} {m' : Model β} {w : α} {w' : β} {Z : set (α × β)} (h₂ : bisimulation Z m m') (h₁ : (w, w') ∈ Z):
-    ∀ φ, (m, w) ⊢ φ ↔ (m', w') ⊢ φ :=
+lemma bisimulation_preserves_satisfaction {α β : Type} {m : Model α} {m' : Model β} {w : α} {w' : β} {Z : set (α × β)}
+    (h₂ : bisimulation Z m m') (h₁ : (w, w') ∈ Z):
+        ∀ φ, (m, w) ⊢ φ ↔ (m', w') ⊢ φ :=
 begin
     intro φ,
     cases h₂,
@@ -194,8 +197,9 @@ def onto {α β} (f : α → β) := ∀ b, ∃ a, f(a) = b
 
 def func_as_set {α β} (f : α → β) : set (α × β) := { x | x.2 = f x.1 }
 
-lemma bounded_morphic_img_preserves_validity {α β : Type} {𝔽 : set (α × α)} {ℍ : set (β × β)} {f : α → β} (h₁ : bounded_morphism f 𝔽 ℍ) (h₂ : onto f) :
-    ∀ φ, 𝔽 ⊨ φ → ℍ ⊨ φ :=
+lemma bounded_morphic_img_preserves_validity {α β : Type} {𝔽 : set (α × α)} {ℍ : set (β × β)} {f : α → β}
+    (h₁ : bounded_morphism f 𝔽 ℍ) (h₂ : onto f) :
+        ∀ φ, 𝔽 ⊨ φ → ℍ ⊨ φ :=
 begin
     intros φ sat V' w',
     specialize h₂ w',
@@ -252,18 +256,26 @@ end
 -- can we move this f into the proof somehow?
 def f : twovalue → onevalue := λ x, onevalue.C
 def refl_frame := Id onevalue
-def irrefl_frame : set (twovalue × twovalue) := { x | x.1 = twovalue.A ∧ x.2 = twovalue.B ∨ x.1 = twovalue.B ∧ x.2 = twovalue.A }
+def irrefl_frame : set (twovalue × twovalue) := { x | x.2 ≠ x.1 }
 
-lemma irreflexivity_not_modally_definable : ¬ ∃ φ, ∀ α 𝔽, Id α ∩ 𝔽 = ∅ ↔ 𝔽 ⊨ φ :=
+lemma irreflexivity_not_modally_definable :
+    ¬ ∃ φ, ∀ α 𝔽, Id α ∩ 𝔽 = ∅ ↔ 𝔽 ⊨ φ :=
 begin
     intro h,
     cases h,
+    -- note that here we use the mathlib to reason about empty sets
     have refl_frame_refl : Id onevalue ∩ refl_frame ≠ ∅ := begin
-        sorry -- shouldnt be hard
+        rw set.ne_empty_iff_exists_mem,
+        apply exists.intro (onevalue.C, onevalue.C),
+        rw [refl_frame, set.inter_self (Id onevalue)],
+        exact rfl
     end,
     have refl_frame_invalidates_h_w : ¬ (refl_frame ⊨ h_w) := contrapositive (iff.elim_right (h_h onevalue refl_frame)) refl_frame_refl,
     have irrefl_frame_irrefl : Id twovalue ∩ irrefl_frame = ∅ := begin
-        sorry -- shouldnt be hard either
+        rw set.eq_empty_iff_forall_not_mem,
+        intros x h,
+        cases iff.elim_left (set.mem_inter_iff x (Id twovalue) irrefl_frame) h,
+        contradiction
     end,
     have irrefl_frame_accepts_h_w := iff.elim_left (h_h twovalue irrefl_frame) irrefl_frame_irrefl,
     have f_onto : onto f := begin
@@ -280,8 +292,8 @@ begin
         {
             intros r h12 twoval taut,
             cases twoval,
-            exact ⟨ twovalue.B, ⟨ or.inl ⟨rfl, rfl⟩, by { cases r.snd, refl } ⟩ ⟩,
-            exact ⟨ twovalue.A, ⟨ or.inr ⟨rfl, rfl⟩, by { cases r.snd, refl } ⟩ ⟩
+            exact ⟨ twovalue.B, ⟨ by simp [irrefl_frame, *], by { cases r.snd, refl } ⟩ ⟩,
+            exact ⟨ twovalue.A, ⟨ by simp [irrefl_frame, *], by { cases r.snd, refl } ⟩ ⟩
         }
     end,
     have refl_frame_accepts_h_w := bounded_morphic_img_preserves_validity p_morphism f_onto h_w irrefl_frame_accepts_h_w,
