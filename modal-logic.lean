@@ -32,8 +32,16 @@ def formula.repr : formula → string
 
 instance : has_repr formula := ⟨formula.repr⟩
 
+-- useful types for creating simple frames
+inductive twovalue : Type
+| A : twovalue
+| B : twovalue
+
+inductive onevalue : Type
+| C : onevalue
+
 def Frame (α : Type) := set (α × α)
-    -- TODO: for now, let's try to take the worlds all values in set α. this is general enough in principle (we can always take subtypes)
+    -- let the worlds be all values in set α. this is general enough in principle (we can always take subtypes)
 
 def Valuation (α : Type) := string → set α
 
@@ -88,7 +96,7 @@ begin
     contradiction
 end
 
-lemma validate_4_iff_refl {α : Type} (𝔽 : set (α × α)) (p : string) :
+lemma reflexivity_modally_definable {α : Type} (𝔽 : set (α × α)) (p : string) :
     Id α ⊆ 𝔽 ↔ 𝔽 ⊨ (□⟦p⟧ => ⟦p⟧) :=
 begin
     apply iff.intro,
@@ -131,11 +139,11 @@ def bisimulation {α β : Type} (Z : set (α × β)) (m : Model α) (k : Model �
   ∧ (∀ (z : α × β), z ∈ Z → (∀ a', (z.1, a') ∈ m.frame → ∃ b', (z.2, b') ∈ k.frame ∧ (a', b') ∈ Z)) -- ZIG
   ∧ (∀ (z : α × β), z ∈ Z → (∀ b', (z.2, b') ∈ k.frame → ∃ a', (z.1, a') ∈ m.frame ∧ (a', b') ∈ Z)) -- ZAG
 
-lemma bisimulation_preserves_satisfaction {α β : Type} {m : Model α} {m' : Model β} {w : α} {w' : β} (Z : set (α × β)) (h₂ : bisimulation Z m m') (h₁ : (w, w') ∈ Z):
+lemma bisimulation_preserves_satisfaction {α β : Type} {m : Model α} {m' : Model β} {w : α} {w' : β} {Z : set (α × β)} (h₂ : bisimulation Z m m') (h₁ : (w, w') ∈ Z):
     ∀ φ, (m, w) ⊢ φ ↔ (m', w') ⊢ φ :=
 begin
     intro φ,
-    cases h₂, -- TODO: rename these hypothesis to something more meaningful
+    cases h₂,
     cases h₂_right,
     induction φ generalizing w w',
     {
@@ -150,30 +158,22 @@ begin
                assume sat, contrapositive (iff.elim_left (φ_ih h₁)) sat⟩
     },
     {
-        -- okay this is the interesting part
-        -- TODO: simplify! split to lemma?
         apply iff.intro; intro sat; cases sat; cases sat_h,
         {
-            -- need forth condition
-            have cond := h₂_right_left,
-            specialize cond (w, w') h₁ sat_w sat_h_left,
-            cases cond,
-            cases cond_h,
-            -- (sat_w, cond_w) is our new pair
-            specialize φ_ih cond_h_right,
-            apply exists.intro cond_w,
-            exact ⟨ cond_h_left, iff.elim_left φ_ih sat_h_right ⟩
+            -- use forth condition
+            specialize h₂_right_left (w, w') h₁ sat_w sat_h_left,
+            cases h₂_right_left,
+            cases h₂_right_left_h,
+            -- (sat_w, h₂_right_left_w) is our new pair
+            exact exists.intro h₂_right_left_w ⟨ h₂_right_left_h_left, iff.elim_left (φ_ih h₂_right_left_h_right) sat_h_right ⟩
         },
         {
-            -- need back condition
-            have cond := h₂_right_right,
-            specialize cond (w, w') h₁ sat_w sat_h_left,
-            cases cond,
-            cases cond_h,
-            -- (cond_w, sat_w) is our new pair
-            specialize φ_ih cond_h_right,
-            apply exists.intro cond_w,
-            exact ⟨ cond_h_left, iff.elim_right φ_ih sat_h_right ⟩
+            -- use back condition
+            specialize h₂_right_right (w, w') h₁ sat_w sat_h_left,
+            cases h₂_right_right,
+            cases h₂_right_right_h,
+            -- (h₂_right_right_w, sat_w) is our new pair
+            exact exists.intro h₂_right_right_w ⟨ h₂_right_right_h_left, iff.elim_right (φ_ih h₂_right_right_h_right) sat_h_right ⟩
         }
     },
     {
@@ -192,75 +192,98 @@ def bounded_morphism {α β} (f : α → β) (𝔽 : set (α × α)) (ℍ : set 
 -- AKA surjection
 def onto {α β} (f : α → β) := ∀ b, ∃ a, f(a) = b
 
-def func_as_set {α β} (f : α → β) : set (α × β) := { x | x.2 = f(x.1) }
+def func_as_set {α β} (f : α → β) : set (α × β) := { x | x.2 = f x.1 }
 
-example {α β} (a : α) (f : α → β) : (a, f a) ∈ func_as_set f := begin
-    exact rfl
-end
-
-def custom_rel {α β} (f : α → β) (V' : string → set β) : string → set α := λ prop, { x | f x ∈ V' prop }
-
-lemma bounded_morphic_img_preserves_validity {α β : Type} (𝔽 : set (α × α)) (ℍ : set (β × β)) (f : α → β) (h₁ : bounded_morphism f 𝔽 ℍ) (h₂ : onto f) :
-    ∀ φ, 𝔽 ⊨ φ ↔ ℍ ⊨ φ :=
+lemma bounded_morphic_img_preserves_validity {α β : Type} {𝔽 : set (α × α)} {ℍ : set (β × β)} {f : α → β} (h₁ : bounded_morphism f 𝔽 ℍ) (h₂ : onto f) :
+    ∀ φ, 𝔽 ⊨ φ → ℍ ⊨ φ :=
 begin
-    intro φ,
-    apply iff.intro,
-    {
-        intro sat,
-        intros V' w',
-        specialize h₂ w',
-        cases h₂,
-        cases h₁,
-        --rel = func_as_set f
-        --V = custom_rel f V' = λ prop, { x | f x ∈ V' prop }
-        have related_w_w' : (h₂_w, w') ∈ func_as_set f := begin
-            rw ←h₂_h,
-            exact rfl
-        end,
-        -- TODO: this should be a lemma
-        have bisim : bisimulation (func_as_set f) ({frame := 𝔽, valuation := custom_rel f V'}) ({frame := ℍ, valuation := V'}) := begin
-            apply and.intro,
+    intros φ sat V' w',
+    specialize h₂ w',
+    cases h₂,
+    cases h₁,
+    -- our relation between 𝔽 and ℍ = func_as_set f
+    -- our valuation on 𝔽 := custom_rel f V' = λ prop, { x | f x ∈ V' prop }
+    have related_w_w' : (h₂_w, w') ∈ func_as_set f := begin
+        rw ←h₂_h,
+        exact rfl
+    end,
+    have bisim : bisimulation (func_as_set f) ({frame := 𝔽, valuation := λ prop, { x | f x ∈ V' prop }}) ({frame := ℍ, valuation := V'}) := begin
+        apply and.intro,
+        {
+            -- prove that our new valuation is invariant under f (both ways!)
+            intros prop z z_in_rel,
+            change z.snd = f z.fst at z_in_rel,
+            apply iff.intro,
             {
-                -- prove that our new valuation works
-                intros prop z z_in_rel,
-                change z.snd = f z.fst at z_in_rel,
-                apply iff.intro,
-                {
-                    intro z_fst_in_V,
-                    change f z.fst ∈ V' prop at z_fst_in_V,
-                    rw ←z_in_rel at z_fst_in_V,
-                    assumption
-                },
-                {
-                    intro z_snd_in_V',
-                    change f z.fst ∈ V' prop,
-                    rw z_in_rel at z_snd_in_V',
-                    assumption
-                }
+                intro z_fst_in_V,
+                change f z.fst ∈ V' prop at z_fst_in_V,
+                rw ←z_in_rel at z_fst_in_V,
+                assumption
             },
             {
-                -- translating ZIG and ZAG properties
-                apply and.intro,
-                {
-                    intros z z_in_rel a' 𝔽_neighbour,
-                    specialize h₁_left (z.fst, a') 𝔽_neighbour,
-                    change z.snd = f z.fst at z_in_rel,
-                    rw z_in_rel,
-                    exact exists.intro (f a') (and.intro h₁_left rfl)
-                },
-                {
-                    intros z z_in_rel b' ℍ_neighbour,
-                    specialize h₁_right (z.snd, b') ℍ_neighbour z.fst (eq.symm z_in_rel),
-                    cases h₁_right,
-                    cases h₁_right_h,
-                    exact exists.intro h₁_right_w ⟨h₁_right_h_left, eq.symm h₁_right_h_right⟩
-                }
+                intro z_snd_in_V',
+                change f z.fst ∈ V' prop,
+                rw z_in_rel at z_snd_in_V',
+                assumption
             }
-        end,
-        -- use bisimulation result
-        exact iff.elim_left (bisimulation_preserves_satisfaction (func_as_set f) bisim related_w_w' φ) (sat (custom_rel f V') h₂_w)
-    },
-    {
-        sorry -- exactly as the other case, maybe even simpler
-    }
+        },
+        {
+            -- translating ZIG and ZAG properties
+            apply and.intro,
+            {
+                intros z z_in_rel a' 𝔽_neighbour,
+                change z.snd = f z.fst at z_in_rel,
+                rw z_in_rel,
+                exact exists.intro (f a') (and.intro (h₁_left (z.fst, a') 𝔽_neighbour) rfl)
+            },
+            {
+                intros z z_in_rel b' ℍ_neighbour,
+                specialize h₁_right (z.snd, b') ℍ_neighbour z.fst (eq.symm z_in_rel),
+                cases h₁_right,
+                cases h₁_right_h,
+                exact exists.intro h₁_right_w ⟨h₁_right_h_left, eq.symm h₁_right_h_right⟩
+            }
+        }
+    end,
+    -- use bisimulation result
+    exact iff.elim_left (bisimulation_preserves_satisfaction bisim related_w_w' φ) (sat (λ prop, { x | f x ∈ V' prop }) h₂_w)
+end
+
+-- can we move this f into the proof somehow?
+def f : twovalue → onevalue := λ x, onevalue.C
+def refl_frame := Id onevalue
+def irrefl_frame : set (twovalue × twovalue) := { x | x.1 = twovalue.A ∧ x.2 = twovalue.B ∨ x.1 = twovalue.B ∧ x.2 = twovalue.A }
+
+lemma irreflexivity_not_modally_definable : ¬ ∃ φ, ∀ α 𝔽, Id α ∩ 𝔽 = ∅ ↔ 𝔽 ⊨ φ :=
+begin
+    intro h,
+    cases h,
+    have refl_frame_refl : Id onevalue ∩ refl_frame ≠ ∅ := begin
+        sorry -- shouldnt be hard
+    end,
+    have refl_frame_invalidates_h_w : ¬ (refl_frame ⊨ h_w) := contrapositive (iff.elim_right (h_h onevalue refl_frame)) refl_frame_refl,
+    have irrefl_frame_irrefl : Id twovalue ∩ irrefl_frame = ∅ := begin
+        sorry -- shouldnt be hard either
+    end,
+    have irrefl_frame_accepts_h_w := iff.elim_left (h_h twovalue irrefl_frame) irrefl_frame_irrefl,
+    have f_onto : onto f := begin
+        intro y,
+        cases y,
+        exact ⟨ twovalue.A, rfl ⟩
+    end,
+    have p_morphism : bounded_morphism f irrefl_frame refl_frame := begin
+        apply and.intro,
+        {
+            intros r h12,
+            exact rfl
+        },
+        {
+            intros r h12 twoval taut,
+            cases twoval,
+            exact ⟨ twovalue.B, ⟨ or.inl ⟨rfl, rfl⟩, by { cases r.snd, refl } ⟩ ⟩,
+            exact ⟨ twovalue.A, ⟨ or.inr ⟨rfl, rfl⟩, by { cases r.snd, refl } ⟩ ⟩
+        }
+    end,
+    have refl_frame_accepts_h_w := bounded_morphic_img_preserves_validity p_morphism f_onto h_w irrefl_frame_accepts_h_w,
+    contradiction
 end
