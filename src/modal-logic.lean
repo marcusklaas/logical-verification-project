@@ -1,16 +1,25 @@
 import data.set.basic
 
+-- project logical verification 2018 - marcus klaas de vries 
+
+-- this file defines some elementary structures and results used in the semantics of
+-- basic unimodal logic.
+-- we first show that reflexivity of frames is modally definable
+-- then, we prove that bisimulations preserves formula satisfaction
+-- as a corollary, bounded morphic images of frames preserve formula validity
+-- finally, we use this result to prove that irreflexivity of frames is *not*
+-- modally definable
+
 -- basic formula for unimodal logic
-inductive formula 
+inductive formula : Type
 | bottom        : formula 
 | propositional : string → formula
 | negation      : formula → formula
 | diamond       : formula → formula
 | disjunction   : formula → formula → formula
 
-#check formula.diamond $ formula.negation $ formula.propositional "p"
-
--- equivalence
+-- define box, conjunction and implication in terms of other operators
+-- to reduce the number of induction steps!
 def box : formula → formula
 := formula.negation ∘ formula.diamond ∘ formula.negation
 
@@ -20,7 +29,10 @@ def conjunction : formula → formula → formula
 def implication : formula → formula → formula
 | φ ψ := formula.disjunction ψ (formula.negation φ)
 
--- TODO: fix formatting of more complex formulas using parens
+-- we could fix formatting of more complex formulas using parens,
+-- but that is not so interesting from a verification point of view.
+-- also, we disobey Jasmin's suggestion to match only on disjoint
+-- cases. it's more convenient to do it this way. also, we're rebels
 def formula.repr : formula → string
 | (formula.negation (formula.diamond (formula.negation ψ))) := "□" ++ formula.repr ψ
 | (formula.negation (formula.disjunction (formula.negation ψ) (formula.negation χ))) := formula.repr ψ ++ " ∧ " ++ formula.repr χ
@@ -34,23 +46,14 @@ def formula.repr : formula → string
 
 instance : has_repr formula := ⟨formula.repr⟩
 
--- useful types for creating simple frames
-inductive twovalue : Type
-| A : twovalue
-| B : twovalue
-
-inductive onevalue : Type
-| C : onevalue
-
-def Frame (α : Type) := set (α × α)
-    -- let the worlds be all values in set α. this is general enough in principle (we can always take subtypes)
-
+-- let the worlds be all values in set α. this is general enough in principle (we can always take subtypes)
 def Valuation (α : Type) := string → set α
 
-def pairs {α β : Type} (A : set α) (B: set β) : set (α × β) := { x | x.1 ∈ A ∧ x.2 ∈ B }
-
+-- instead of defining relations as sets of pairs, we can also see them as
+-- predicates α → α → Prop, as is more commonly done in Lean. i would have chosen
+-- this if i were to do it again, as working with sets can be a bit painful
 structure Model (α : Type) :=
-    (frame : set (α × α)) -- TODO: use frame, but need to implement has_mem for it
+    (frame : set (α × α))
     (valuation : Valuation α)
 
 def satisfies {α : Type} (m : Model α) : α → formula → Prop
@@ -60,36 +63,29 @@ def satisfies {α : Type} (m : Model α) : α → formula → Prop
 | w (formula.propositional p) := w ∈ m.valuation p
 | w (formula.diamond f)       := ∃ v : α, ((w, v) ∈ m.frame ∧ satisfies v f)
 
-infixl `⊢` : 50    := function.uncurry satisfies
-
+-- a frame validates a formula when all models based on the frame satisfy the formula everywhere 
 def validates {α : Type} : set (α × α) → formula → Prop
-| 𝔽 φ := ∀ (V : Valuation α) (w : α), ({frame := 𝔽, valuation := V}, w) ⊢ φ
+| 𝔽 φ := ∀ (V : Valuation α) (w : α), satisfies {frame := 𝔽, valuation := V} w φ
 
--- some shorthand
+-- shorthands
 notation `□`       := box
 notation `⋄`       := formula.diamond
 notation `!`       := formula.negation -- ¬ would be nicer, but overloading is not allowed
 notation `⟦` p `⟧` := formula.propositional p
-infixr ` => ` : 10 := implication
+notation `⊥`       := formula.bottom
+infixr ` => ` : 90 := implication
 infixl ` | ` : 40  := formula.disjunction
 infixl ` & ` : 50  := conjunction
-notation `⊥`       := formula.bottom
+infixl `⊢` : 50    := function.uncurry satisfies
 infixl `⊨` : 50    := validates
 
-#check function.uncurry
-#check (⊢)
-
-#eval (□⟦"p"⟧ => !⟦"p"⟧).repr -- □p → ¬p
-
-example {α : Type} (𝔽 : set (α × α)) (w : α) : ¬ 𝔽 ⊨ ⊥ := sorry
-
 def Id (α : Type) : set (α × α) := { x | x.2 = x.1 }
+def refl_rel {α} (𝔽 : set (α × α)) := Id α ⊆ 𝔽
+def irrefl_rel {α} (𝔽 : set (α × α)) := Id α ∩ 𝔽 = ∅
 
-def successors {α : Type} (r : set (α × α)) (w : α) : set α :=
-    { x | (w, x) ∈ r }
-
+-- successors of a given world, useful in the pf of the reflexivity lemma
 def custom_val {α : Type} (𝔽 : set (α × α)) (w : α) (s : string) : set α :=
-    successors 𝔽 w
+    { x | (w, x) ∈ 𝔽 }
 
 lemma contrapositive {A B : Prop} (h : A → B) : ¬ B → ¬ A :=
 begin
@@ -99,7 +95,7 @@ begin
 end
 
 lemma reflexivity_modally_definable {α : Type} {𝔽 : set (α × α)} {p : string} :
-    Id α ⊆ 𝔽 ↔ 𝔽 ⊨ (□⟦p⟧ => ⟦p⟧) :=
+    refl_rel 𝔽 ↔ 𝔽 ⊨ □⟦p⟧ => ⟦p⟧ :=
 begin
     apply iff.intro,
     {
@@ -118,7 +114,6 @@ begin
         intros val r h2,
         cases r,
         cases h2,
-        -- TODO: see if we can do this w/o contradiction
         apply classical.by_contradiction,
         have neighbour_iff_in_val : ∀ x : α, (r_fst, x) ∈ 𝔽 ↔ x ∈ custom_val 𝔽 r_fst p := (λ x, by refl),
         specialize val (custom_val 𝔽 r_fst) r_fst,
@@ -253,17 +248,24 @@ begin
     exact iff.elim_left (bisimulation_preserves_satisfaction bisim related_w_w' φ) (sat (λ prop, { x | f x ∈ V' prop }) h₂_w)
 end
 
--- can we move this f into the proof somehow?
-def f : twovalue → onevalue := λ x, onevalue.C
-def refl_frame := Id onevalue
-def irrefl_frame : set (twovalue × twovalue) := { x | x.2 ≠ x.1 }
+-- singleton type for creating an elementary frame
+inductive onevalue
+| C : onevalue
 
+-- can we move this f into the proof somehow?
+def f : bool → onevalue := λ x, onevalue.C
+def refl_frame := Id onevalue
+def irrefl_frame : set (bool × bool) := { x | x.2 ≠ x.1 }
+
+-- here we show that the singleton reflexive frame is a bounded morphic image
+-- of the symmetric irreflexive two-point frame. from this it follows that irreflexivity
+-- is not modally definable
 lemma irreflexivity_not_modally_definable :
-    ¬ ∃ φ, ∀ α 𝔽, Id α ∩ 𝔽 = ∅ ↔ 𝔽 ⊨ φ :=
+    ¬ ∃ φ, ∀ α (𝔽 : set (α × α)), irrefl_rel 𝔽 ↔ 𝔽 ⊨ φ :=
 begin
     intro h,
     cases h,
-    -- note that here we use the mathlib to reason about empty sets
+    -- here we use the mathlib to reason about empty sets
     have refl_frame_refl : Id onevalue ∩ refl_frame ≠ ∅ := begin
         rw set.ne_empty_iff_exists_mem,
         apply exists.intro (onevalue.C, onevalue.C),
@@ -271,17 +273,17 @@ begin
         exact rfl
     end,
     have refl_frame_invalidates_h_w : ¬ (refl_frame ⊨ h_w) := contrapositive (iff.elim_right (h_h onevalue refl_frame)) refl_frame_refl,
-    have irrefl_frame_irrefl : Id twovalue ∩ irrefl_frame = ∅ := begin
+    have irrefl_frame_irrefl : Id bool ∩ irrefl_frame = ∅ := begin
         rw set.eq_empty_iff_forall_not_mem,
         intros x h,
-        cases iff.elim_left (set.mem_inter_iff x (Id twovalue) irrefl_frame) h,
+        cases iff.elim_left (set.mem_inter_iff x (Id bool) irrefl_frame) h,
         contradiction
     end,
-    have irrefl_frame_accepts_h_w := iff.elim_left (h_h twovalue irrefl_frame) irrefl_frame_irrefl,
+    have irrefl_frame_accepts_h_w := iff.elim_left (h_h bool irrefl_frame) irrefl_frame_irrefl,
     have f_onto : onto f := begin
         intro y,
         cases y,
-        exact ⟨ twovalue.A, rfl ⟩
+        exact ⟨ tt, rfl ⟩
     end,
     have p_morphism : bounded_morphism f irrefl_frame refl_frame := begin
         apply and.intro,
@@ -292,8 +294,8 @@ begin
         {
             intros r h12 twoval taut,
             cases twoval,
-            exact ⟨ twovalue.B, ⟨ by simp [irrefl_frame, *], by { cases r.snd, refl } ⟩ ⟩,
-            exact ⟨ twovalue.A, ⟨ by simp [irrefl_frame, *], by { cases r.snd, refl } ⟩ ⟩
+            exact ⟨ tt, ⟨ by simp [irrefl_frame, *], by { cases r.snd, refl } ⟩ ⟩,
+            exact ⟨ ff, ⟨ by simp [irrefl_frame, *], by { cases r.snd, refl } ⟩ ⟩
         }
     end,
     have refl_frame_accepts_h_w := bounded_morphic_img_preserves_validity p_morphism f_onto h_w irrefl_frame_accepts_h_w,
